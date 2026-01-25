@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
         } else {
             match ping(std::net::IpAddr::V4(Ipv4Addr::from_octets(IPHONE_IP)), &[0]).await {
                 Ok(ping_result) => {
-                    info!("Device found!!! {ping_result:?}");
+                    info!("DEVICE FOUND: {ping_result:?}");
                     ping_fail_count = 0;
                     value = Value::Active;
                 }
