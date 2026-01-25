@@ -7,9 +7,13 @@ use surge_ping::ping;
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
-    
+
     const LINE: u32 = 26;
+    const CHIP: &str = "/dev/gpiochip4";
     const IPHONE_IP: [u8; 4] = [192, 168, 125, 97];
+
+    info!("RELAY STARTUP. MONITORING IP: {IPHONE_IP:?}");
+    info!("OUTPUT ON LINE {LINE} ON CHIP {CHIP}");
 
     let override_path = Path::new("/relay_override");
     let mut ping_fail_count = 0;
@@ -18,7 +22,7 @@ async fn main() -> Result<()> {
     let mut value = Value::Active;
 
     let req_result = gpiocdev::Request::builder()
-        .on_chip("/dev/gpiochip4")
+        .on_chip(CHIP)
         .with_line(LINE)
         .as_output(value)
         .request();
