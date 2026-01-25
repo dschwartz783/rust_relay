@@ -29,11 +29,11 @@ async fn main() -> Result<()> {
 
     match req_result {
         Ok(_) => {
-            info!("BUILDER CREATED");
+            info!("REQUEST CREATED");
         }
 
         Err(_) => {
-            error!("FAILED TO CREATE BUILDER");
+            error!("FAILED TO CREATE REQUEST");
             exit(1)
         }
     }
