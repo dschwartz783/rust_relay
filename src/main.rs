@@ -1,19 +1,51 @@
-use std::{fs::{File, exists}, io::{Read, Result}, net::Ipv4Addr, path::Path, process::exit, thread::sleep, time::Duration, u8};
-
+use std::{fs::{DirBuilder, File, exists}, io::{Read, Result}, net::Ipv4Addr, path::Path, process::exit, thread::sleep, time::Duration, u8};
+use config::{Config};
 use gpiocdev::{line::Value};
 use log::{error, info};
 use surge_ping::ping;
+
+// mod config;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
 
-    const LINE: u32 = 26;
-    const CHIP: &str = "/dev/gpiochip4";
-    const IPHONE_IP: [u8; 4] = [192, 168, 125, 97];
+    const CONFIG_DIR: &str = "/home/david/.config/relay/";
+    let config_file: String = format!("{}config.yaml", CONFIG_DIR);
 
-    info!("RELAY STARTUP. MONITORING IP: {IPHONE_IP:?}");
-    info!("OUTPUT ON LINE {LINE} ON CHIP {CHIP}");
+    match DirBuilder::new().create("/home/david/.config/relay/") {
+        Ok(_) => {info!("INITIALIZED CONFIG DIR")}
+        Err(_) => {}
+    };
+
+    let relay_config: Config;
+
+    if !exists(&config_file).unwrap() {
+        let _ = File::create_new(&config_file).unwrap();
+    }
+
+    match Config::builder()
+        .add_source(config::File::new(config_file.as_str(), config::FileFormat::Yaml))
+        .add_source(config::Environment::with_prefix("RELAY"))
+        .build() {
+            Ok(_config) => {
+                println!("{:?}", _config);
+
+                relay_config = _config
+            }
+            Err(e) => {
+                println!("{}", e);
+                exit(1);
+            }
+        }
+
+    let line: u32 = relay_config.get_int("LINE").unwrap().try_into().unwrap();
+    let chip: &str = &relay_config.get_string("CHIP").unwrap();
+    let iphone_ip_array: Vec<u8> = relay_config.get_array("IPHONE_IP").unwrap().iter().map(|v| v.clone().into_int().unwrap() as u8).collect();
+    let iphone_ip: [u8; 4] = iphone_ip_array.try_into().unwrap_or_else(|_| panic!("COULD NOT READ IPHONE_IP"));
+
+    info!("RELAY STARTUP. MONITORING IP: {iphone_ip:?}");
+    info!("OUTPUT ON LINE {line} ON CHIP {chip}");
 
     let override_path = Path::new("/relay_override");
     let mut ping_fail_count = 0;
@@ -22,8 +54,8 @@ async fn main() -> Result<()> {
     let mut value = Value::Active;
 
     let req_result = gpiocdev::Request::builder()
-        .on_chip(CHIP)
-        .with_line(LINE)
+        .on_chip(chip)
+        .with_line(line)
         .as_output(value)
         .request();
 
@@ -34,14 +66,14 @@ async fn main() -> Result<()> {
 
         Err(_) => {
             error!("FAILED TO CREATE REQUEST");
-            exit(1)
+            exit(1);
         }
     }
 
     loop {
         if exists(override_path)? {
             info!("OVERRIDE FILE FOUND");
-            let override_file = &mut File::open(override_path)?;
+            let override_file = &mut std::fs::File::open(override_path)?;
             let readbuf: &mut String = &mut String::new();
 
             override_file.read_to_string(readbuf)?;
@@ -58,7 +90,7 @@ async fn main() -> Result<()> {
                 };
             }
         } else {
-            match ping(std::net::IpAddr::V4(Ipv4Addr::from_octets(IPHONE_IP)), &[0]).await {
+            match ping(std::net::IpAddr::V4(Ipv4Addr::from_octets(iphone_ip)), &[0]).await {
                 Ok(ping_result) => {
                     info!("DEVICE FOUND: {ping_result:?}");
                     ping_fail_count = 0;
@@ -75,7 +107,7 @@ async fn main() -> Result<()> {
             }
         }
 
-        let _ = req_result.as_ref().unwrap().set_value(LINE, value);
+        let _ = req_result.as_ref().unwrap().set_value(line, value);
 
         sleep(Duration::from_secs(10));
     }
