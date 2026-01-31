@@ -4,16 +4,14 @@ use gpiocdev::{line::Value};
 use log::{error, info};
 use surge_ping::ping;
 
-// mod config;
-
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
 
-    const CONFIG_DIR: &str = "/home/david/.config/relay/";
-    let config_file: String = format!("{}config.yaml", CONFIG_DIR);
+    const CONFIG_DIR: &str = "/etc/relay";
+    let config_file: String = format!("{CONFIG_DIR}/config.yaml");
 
-    match DirBuilder::new().create("/home/david/.config/relay/") {
+    match DirBuilder::new().create(CONFIG_DIR) {
         Ok(_) => {info!("INITIALIZED CONFIG DIR")}
         Err(_) => {}
     };
@@ -47,7 +45,9 @@ async fn main() -> Result<()> {
     info!("RELAY STARTUP. MONITORING IP: {iphone_ip:?}");
     info!("OUTPUT ON LINE {line} ON CHIP {chip}");
 
-    let override_path = Path::new("/relay_override");
+    let override_path_string = format!("{CONFIG_DIR}/override");
+
+    let override_path = Path::new(override_path_string.as_str());
     let mut ping_fail_count = 0;
 
     // Code below will change this value as needed, and the line before the last will change the output to this value on line LINE
